@@ -1,0 +1,121 @@
+{
+  "attacks": {
+    "ics-modbus-tamper": {
+      "id": "MODBUS_COIL_TAMPER",
+      "name": "Modbus TCP Unauthorized Coil/Register Override",
+      "multiplexer_fault": { "action": "step_increase", "value": 35.0 },
+      "signal_profile": "discrete_event"
+    },
+    "ics-iec104-trip": {
+      "id": "IEC104_BREAKER_TRIP",
+      "name": "Industroyer2 IEC-104 Spurious Breaker Trip (COT=6)",
+      "multiplexer_fault": { "action": "step_decrease", "value": 1.6 },
+      "signal_profile": "impulse_shock"
+    },
+    "ics-s7-runaway": {
+      "id": "S7_CENTRIFUGE_RUNAWAY",
+      "name": "Stuxnet S7Comm Overspin & Exothermic Runaway",
+      "multiplexer_fault": { "action": "harmonic_multiplier", "value": 3.2 },
+      "signal_profile": "harmonic_sideband"
+    },
+    "ics-triton-sis": {
+      "id": "TRITON_SIS_OVERRIDE",
+      "name": "Triton TriStation Safety System Logic Override",
+      "multiplexer_fault": { "action": "step_increase", "value": 65.0 },
+      "signal_profile": "caustic_ramp"
+    },
+    "ics-pmu-harmonics": {
+      "id": "PMU_HARMONIC_RESONANCE",
+      "name": "IEEE C37.118 Synchrophasor Harmonic Distortion",
+      "multiplexer_fault": { "action": "harmonic_multiplier", "value": 2.8 },
+      "signal_profile": "harmonic_sideband"
+    },
+    "ics-airgap-tripwire": {
+      "id": "CBF_NAGUMO_TRIPWIRE",
+      "name": "Nagumo CBF Thermal Invariance Air-Gap Latch",
+      "multiplexer_fault": { "action": "drop_to_val", "value": 0.0 },
+      "signal_profile": "flatline_freeze"
+    }
+  },
+  "categories": {
+    "industrial_cps": {
+      "plot_archetype": "discrete_divergence",
+      "lab_module": "ics-iec104-trip",
+      "physics_engine": "ics_guard_engine",
+      "chart_config": {
+        "primary_title": "SCADA Telecontrol Gate Anomaly Rate",
+        "secondary_title": "Modbus / S7Comm / IEC-104 Violation Density",
+        "unit": "ns",
+        "min_val": 0.0,
+        "max_val": 120.0,
+        "safe_low": 0.0,
+        "safe_high": 40.0
+      },
+      "attacks": [
+        "ics-modbus-tamper",
+        "ics-iec104-trip",
+        "ics-s7-runaway",
+        "ics-triton-sis",
+        "ics-airgap-tripwire"
+      ]
+    },
+    "electrical": {
+      "plot_archetype": "spectral_harmonic",
+      "lab_module": "ics-pmu-harmonics",
+      "physics_engine": "grid_harmonics",
+      "chart_config": {
+        "primary_title": "Grid Synchrophasor Frequency",
+        "secondary_title": "Harmonic Distortion Spectrum (1x-5x)",
+        "unit": "Hz",
+        "min_val": 48.0,
+        "max_val": 52.0,
+        "safe_low": 49.5,
+        "safe_high": 50.5
+      },
+      "attacks": [
+        "ics-pmu-harmonics",
+        "ics-iec104-trip",
+        "grid-harmonic-resonance",
+        "rocof-blackout"
+      ]
+    },
+    "vibration": {
+      "plot_archetype": "spectral_harmonic",
+      "lab_module": "ics-s7-runaway",
+      "physics_engine": "rk4_mechanical_vibe",
+      "chart_config": {
+        "primary_title": "Centrifuge & Bearing RMS Velocity",
+        "secondary_title": "FFT Rotational Harmonic Spectrum (1x-5x)",
+        "unit": "mm/s",
+        "min_val": 0.0,
+        "max_val": 12.0,
+        "safe_low": 0.0,
+        "safe_high": 7.1
+      },
+      "attacks": [
+        "ics-s7-runaway",
+        "stuxnet-resonance",
+        "ics-airgap-tripwire"
+      ]
+    },
+    "temperature": {
+      "plot_archetype": "thermal_runaway",
+      "lab_module": "ics-triton-sis",
+      "physics_engine": "thermal_lag_ode",
+      "chart_config": {
+        "primary_title": "Thermal Plant Core Temp T(t)",
+        "secondary_title": "2D Thermal Phase-Plane (T vs dT/dt)",
+        "unit": "C",
+        "min_val": 40.0,
+        "max_val": 160.0,
+        "safe_low": 55.0,
+        "safe_high": 120.0
+      },
+      "attacks": [
+        "ics-triton-sis",
+        "ics-airgap-tripwire",
+        "ics-s7-runaway"
+      ]
+    }
+  }
+}
