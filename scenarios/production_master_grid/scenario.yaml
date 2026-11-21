@@ -1,0 +1,422 @@
+# File: /home/kami/ics-guard/scenarios/production_master_grid/scenario.yaml
+
+version: "1.0"
+scenario:
+  name: "production_master_grid"
+  description: "ICS-Guard Production Master Grid: 3 Edge Sentries, 4 Live Sensors, Mock PLC, Apparatus Plugins & Nexus"
+
+networks:
+  sentinel-grid-net:
+    driver: bridge
+    subnet: "10.240.0.0/24"
+    gateway: "10.240.0.1"
+    internal: false
+
+volumes:
+  shared-models:
+    driver: local
+  shared-datasets:
+    driver: local
+  shared-logs:
+    driver: local
+
+services:
+  # ============================================================================
+  # TIER 6: SENTINEL NEXUS (Master Command Plane + External ICS UI Plugin)
+  # ============================================================================
+  nexus:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.nexus
+    container_name: matrix-nexus
+    hostname: nexus.matrix.internal
+    restart: unless-stopped
+    privileged: true
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.10"
+    ports:
+      - "50051:50051"
+      - "9443:9443"
+      - "9444:9444"
+    volumes:
+      - ./configs:/opt/sentinel-nexus/configs:ro
+      - ./models:/opt/sentinel-nexus/models
+      - ./pcaps:/opt/sentinel-nexus/pcaps:ro
+      - shared-datasets:/var/lib/sentinel-nexus/forge_datasets
+      - shared-logs:/var/log/sentinel-nexus
+      - ./shared/lib:/usr/local/lib/matrix-deps:ro
+      - ./shared/bin/sentinel-nexus:/usr/local/bin/sentinel-nexus:ro
+      - ./web:/opt/sentinel-nexus/web
+      - ../../web:/opt/sentinel-nexus/web/plugins:ro
+    environment:
+      - LD_LIBRARY_PATH=/usr/local/lib/matrix-deps
+      - VMWARE_ENVIRONMENT=true
+      - NEXUS_ENV=simulation
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9443/api/v1/fleet/nodes"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # ============================================================================
+  # SENSORS (MediaMTX RTSP + device-runtime:latest)
+  # ============================================================================
+  sensor-camera:
+    image: bluenviron/mediamtx:latest-ffmpeg
+    container_name: matrix-sensor-camera
+    hostname: camera.matrix.internal
+    restart: unless-stopped
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.75"
+    ports:
+      - "8554:8554"
+      - "8889:8889"
+      - "8189:8189/udp"
+    environment:
+      - MTX_WEBRTCADDITIONALHOSTS=127.0.0.1
+      - MTX_PATHS_THERMAL_FEED_RUNONINIT=ffmpeg -re -f lavfi -i testsrc=size=640x360:rate=15 -pix_fmt yuv420p -c:v libx264 -preset ultrafast -tune zerolatency -f rtsp rtsp://127.0.0.1:8554/thermal_feed
+      - MTX_PATHS_THERMAL_FEED_RUNONINITRESTART=yes
+
+  sensor-vibration:
+    image: sentinel-matrix/device-runtime:latest
+    container_name: matrix-sensor-vibration
+    hostname: vibration.matrix.internal
+    restart: unless-stopped
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.76"
+    ports:
+      - "15502:502"
+    command: ["--archetype", "sensor", "--protocol", "modbus", "--port", "502", "--name", "IFM-Vibration-Temp-Probe"]
+
+  sensor-lidar:
+    image: sentinel-matrix/device-runtime:latest
+    container_name: matrix-sensor-lidar
+    hostname: lidar.matrix.internal
+    restart: unless-stopped
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.77"
+    ports:
+      - "2368:2368/udp"
+    command: ["--archetype", "vision", "--protocol", "stream_telemetry", "--port", "2368", "--name", "SICK-LiDAR-Scanner"]
+
+  sensor-power:
+    image: sentinel-matrix/device-runtime:latest
+    container_name: matrix-sensor-power
+    hostname: power-meter.matrix.internal
+    restart: unless-stopped
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.78"
+    ports:
+      - "15501:502"
+    command: ["--archetype", "sensor", "--protocol", "modbus", "--port", "502", "--name", "Siemens-PAC3200-Power-Meter"]
+
+  # ============================================================================
+  # DIGITAL TWIN HARDWARE: MOCK PLC (Built by ics-guard)
+  # ============================================================================
+  mock-plc:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.plc
+    container_name: matrix-mock-plc
+    hostname: plc.matrix.internal
+    restart: unless-stopped
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.150"
+    ports:
+      - "502:502"
+      - "102:102"
+      - "2404:2404"
+    volumes:
+      - ./configs:/opt/sentinel-matrix/configs:ro
+      - ./shared/bin/mock_plc:/usr/local/bin/mock_plc:ro
+    command: ["/usr/local/bin/mock_plc", "-c", "/opt/sentinel-matrix/configs/plc_register_map.json"]
+
+  # ============================================================================
+  # TIER 4: XINFER FORGE (Continuous Learning Daemon)
+  # ============================================================================
+  forge:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.forge
+    container_name: matrix-forge
+    hostname: forge.matrix.internal
+    restart: unless-stopped
+    depends_on:
+      nexus:
+        condition: service_healthy
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.20"
+    volumes:
+      - shared-datasets:/var/lib/sentinel-nexus/forge_datasets:ro
+      - ./models:/opt/sentinel-nexus/models:rw
+      - shared-logs:/var/log/xinfer-forge
+    environment:
+      - NEXUS_REST_URL=http://10.240.0.10:9443
+      - NEXUS_DATASET_DIR=/var/lib/sentinel-nexus/forge_datasets
+      - NEXUS_MODELS_DIR=/opt/sentinel-nexus/models
+      - VMWARE_CONTAINER=true
+
+  # ============================================================================
+  # TIER 3: EDGE APPLIANCE 01 (Industrial Substation - OpenVINO + ics-guard)
+  # ============================================================================
+  sentinel-edge-01:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.sentinel
+    container_name: matrix-edge-substation-01
+    hostname: substation-01.matrix.internal
+    restart: unless-stopped
+    privileged: true
+    cap_add: [NET_ADMIN, SYS_ADMIN, BPF]
+    depends_on:
+      nexus:
+        condition: service_healthy
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.101"
+    volumes:
+      - ./configs/nodes/node_01_substation_alpha.yaml:/etc/sentinel/sentinel.yaml:ro
+      - ./configs:/etc/sentinel/configs:ro
+      - ./models:/etc/sentinel/models:rw
+      - shared-logs:/var/log/sentinel
+      - ./shared/lib:/usr/local/lib/matrix-deps:ro
+      - ./shared/bin/sentinel:/usr/local/bin/sentinel:ro
+      - /usr/local/lib/libics_guard.so:/usr/local/lib/libics_guard.so:ro
+      - /usr/local/lib/blackbox/ics_guard_dissector_plugin.so:/etc/sentinel/plugins.d/ics_guard_dissector_plugin.so:ro
+    environment:
+      - LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib/matrix-deps
+      - NODE_IDENTIFIER=Edge-Substation-01
+      - SITE_IDENTIFIER=Edge-Substation-01
+      - NODE_SITE=PowerGrid-North-01
+      - PRIMARY_BACKEND=INTEL_OPENVINO
+      - VMWARE_VIRTUAL_NIC=true
+      - XDP_MODE=SKB
+      - NEXUS_HOST=10.240.0.10
+      - NEXUS_PORT=50051
+
+  # ============================================================================
+  # TIER 3: EDGE APPLIANCE 02 (Hospital PACS - TensorRT + ics-guard)
+  # ============================================================================
+  sentinel-edge-02:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.sentinel
+    container_name: matrix-edge-hospital-02
+    hostname: hospital-02.matrix.internal
+    restart: unless-stopped
+    privileged: true
+    cap_add: [NET_ADMIN, SYS_ADMIN, BPF]
+    depends_on:
+      nexus:
+        condition: service_healthy
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.102"
+    volumes:
+      - ./configs/nodes/node_02_hospital_pacs.yaml:/etc/sentinel/sentinel.yaml:ro
+      - ./configs:/etc/sentinel/configs:ro
+      - ./models:/etc/sentinel/models:rw
+      - shared-logs:/var/log/sentinel
+      - ./shared/lib:/usr/local/lib/matrix-deps:ro
+      - ./shared/bin/sentinel:/usr/local/bin/sentinel:ro
+      - /usr/local/lib/libics_guard.so:/usr/local/lib/libics_guard.so:ro
+      - /usr/local/lib/blackbox/ics_guard_dissector_plugin.so:/etc/sentinel/plugins.d/ics_guard_dissector_plugin.so:ro
+    environment:
+      - LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib/matrix-deps
+      - NODE_IDENTIFIER=Edge-Hospital-PACS-02
+      - SITE_IDENTIFIER=Edge-Hospital-PACS-02
+      - NODE_SITE=Metro-General-Hospital
+      - PRIMARY_BACKEND=NVIDIA_TENSORRT
+      - VMWARE_VIRTUAL_NIC=true
+      - XDP_MODE=SKB
+      - NEXUS_HOST=10.240.0.10
+      - NEXUS_PORT=50051
+
+  # ============================================================================
+  # TIER 3: EDGE APPLIANCE 03 (Refinery SCADA - RKNN + ics-guard)
+  # ============================================================================
+  sentinel-edge-03:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.sentinel
+    container_name: matrix-edge-refinery-03
+    hostname: refinery-03.matrix.internal
+    restart: unless-stopped
+    privileged: true
+    cap_add: [NET_ADMIN, SYS_ADMIN, BPF]
+    depends_on:
+      nexus:
+        condition: service_healthy
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.103"
+    volumes:
+      - ./configs/nodes/node_03_refinery_plc.yaml:/etc/sentinel/sentinel.yaml:ro
+      - ./configs:/etc/sentinel/configs:ro
+      - ./models:/etc/sentinel/models:rw
+      - shared-logs:/var/log/sentinel
+      - ./shared/lib:/usr/local/lib/matrix-deps:ro
+      - ./shared/bin/sentinel:/usr/local/bin/sentinel:ro
+      - /usr/local/lib/libics_guard.so:/usr/local/lib/libics_guard.so:ro
+      - /usr/local/lib/blackbox/ics_guard_dissector_plugin.so:/etc/sentinel/plugins.d/ics_guard_dissector_plugin.so:ro
+    environment:
+      - LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib/matrix-deps
+      - NODE_IDENTIFIER=Edge-Refinery-PLC-03
+      - SITE_IDENTIFIER=Edge-Refinery-PLC-03
+      - NODE_SITE=Coastal-Refinery-ZoneB
+      - PRIMARY_BACKEND=ROCKCHIP_RKNN
+      - VMWARE_VIRTUAL_NIC=true
+      - XDP_MODE=SKB
+      - NEXUS_HOST=10.240.0.10
+      - NEXUS_PORT=50051
+
+  # ============================================================================
+  # TRAFFIC, TUI MONITOR & ADVERSARY
+  # ============================================================================
+  traffic-gen:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.traffic
+    container_name: matrix-traffic-gen
+    hostname: traffic.matrix.internal
+    restart: unless-stopped
+    depends_on:
+      nexus:
+        condition: service_healthy
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.50"
+    volumes:
+      - ./configs:/configs:ro
+      - ./src:/app/src:ro
+      - shared-logs:/var/log/traffic-gen
+      - ./pcaps:/shared/datasets:ro
+    environment:
+      - NEXUS_ENDPOINT=10.240.0.10:50051
+      - TARGET_NODES=10.240.0.101,10.240.0.102,10.240.0.103
+      - VMWARE_SIMULATION_MODE=true
+
+  monitor:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.monitor
+    container_name: matrix-monitor
+    restart: unless-stopped
+    depends_on:
+      nexus:
+        condition: service_healthy
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.60"
+    volumes:
+      - ./src/monitor:/app/src/monitor:ro
+    environment:
+      - NEXUS_REST_URL=http://10.240.0.10:9443
+      - NEXUS_STREAM_URL=http://10.240.0.10:9444
+      - TERM=xterm-256color
+    stdin_open: true
+    tty: true
+
+  adversary:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.adversary
+    container_name: matrix-adversary
+    hostname: adversary.matrix.internal
+    restart: unless-stopped
+    depends_on:
+      nexus:
+        condition: service_healthy
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.99"
+    volumes:
+      - ./configs:/configs:ro
+      - ./src:/app/src:ro
+      - shared-logs:/var/log/adversary
+    environment:
+      - NEXUS_REST_URL=http://10.240.0.10:9443
+      - TARGET_NODES=10.240.0.101,10.240.0.102,10.240.0.103
+
+  # ============================================================================
+  # PLUGGABLE REAL-WORLD APPARATUS & DUAL-PCAP RUNTIME CONTAINERS
+  # ============================================================================
+  apparatus-synchrophasor:
+    image: sentinel-matrix/apparatus-runtime:latest
+    container_name: matrix-apparatus-synchrophasor
+    hostname: apparatus-synchrophasor.matrix.internal
+    restart: unless-stopped
+    depends_on:
+      nexus: { condition: service_healthy }
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.131"
+    ports:
+      - "18093:8090"
+    volumes:
+      - ./pcaps:/app/pcaps:ro
+      - ../../apparatus_plugins:/app/apparatus_plugins:ro
+    command: [
+      "--type", "synchrophasor",
+      "--name", "Substation-Synchrophasor-PMU",
+      "--attack-pcap", "/app/pcaps/industroyer2_substation.pcap",
+      "--target-ip", "10.240.0.101",
+      "--target-port", "15501",
+      "--api-port", "8090"
+    ]
+
+  apparatus-thermal:
+    image: sentinel-matrix/apparatus-runtime:latest
+    container_name: matrix-apparatus-thermal
+    hostname: apparatus-thermal.matrix.internal
+    restart: unless-stopped
+    depends_on:
+      nexus: { condition: service_healthy }
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.132"
+    ports:
+      - "18094:8090"
+    volumes:
+      - ./pcaps:/app/pcaps:ro
+      - ../../apparatus_plugins:/app/apparatus_plugins:ro
+    command: [
+      "--type", "flir_thermal",
+      "--name", "Hospital-Radiometric-Thermal-Camera",
+      "--attack-pcap", "/app/pcaps/triton_trisis_sis.pcap",
+      "--target-ip", "10.240.0.102",
+      "--target-port", "8554",
+      "--api-port", "8090"
+    ]
+
+  apparatus-reactor:
+    image: sentinel-matrix/apparatus-runtime:latest
+    container_name: matrix-apparatus-reactor
+    hostname: apparatus-reactor.matrix.internal
+    restart: unless-stopped
+    depends_on:
+      nexus: { condition: service_healthy }
+    networks:
+      sentinel-grid-net:
+        ipv4_address: "10.240.0.133"
+    ports:
+      - "18095:8090"
+    volumes:
+      - ./pcaps:/app/pcaps:ro
+      - ../../apparatus_plugins:/app/apparatus_plugins:ro
+    command: [
+      "--type", "reactor_core",
+      "--name", "Refinery-Exothermic-Reaction-Vessel",
+      "--attack-pcap", "/app/pcaps/stuxnet_s7comm_injected.pcap",
+      "--target-ip", "10.240.0.103",
+      "--target-port", "102",
+      "--api-port", "8090"
+    ]
