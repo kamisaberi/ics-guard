@@ -8,25 +8,6 @@ node:
     primary_backend: "INTEL_OPENVINO"
     xdp_driver_mode: "SKB"
 
-ui_profile:
-  template: "substation_power"
-  overrides:
-    instrument_title: "POWER QUALITY & SYNCHROPHASOR SCOPE (SUBSTATION ALPHA)"
-    instrument_type: "grid"
-    sensors_add:
-      - sensor_id: Substation-Modbus-01
-        name: Substation Breaker PLC (Modbus TCP :502)
-        category: INDUSTRIAL_CPS
-        port: 502
-        unit: ops/s
-        baseline: 18.0
-      - sensor_id: Substation-Power-Quality-02
-        name: Siemens PAC3200 Synchrophasor PMU
-        category: ELECTRICAL
-        port: 15501
-        unit: Hz
-        baseline: 50.0
-
 nexus:
   enabled: true
   host: "10.240.0.10"
