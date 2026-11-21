@@ -1,0 +1,12 @@
+# File: /home/kami/ics-guard/cmake/ics_guard.pc.in
+
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: ics_guard
+Description: Deterministic Industrial SCADA/OT & Critical Infrastructure Defense Engine
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lics_guard -lm
+Cflags: -I${includedir}
