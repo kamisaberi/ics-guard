@@ -1,0 +1,9 @@
+{
+  "plugins": [
+    {
+      "id": "industrial",
+      "script": "industrial/industrial.js",
+      "style": "industrial/industrial.css"
+    }
+  ]
+}
