@@ -1,0 +1,72 @@
+/* File: /home/kami/ics-guard/web/industrial/industrial.css */
+
+.ics-c2-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(11, 17, 30, 0.92);
+    border: 1px solid #1E293B;
+    border-radius: 6px;
+}
+
+.ics-c2-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+@media (max-width: 1180px) {
+    .ics-c2-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.ics-c2-card {
+    background: #070B14;
+    border: 1px solid #1E293B;
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ics-c2-card.alert {
+    border-color: #FF3366;
+    box-shadow: 0 0 14px rgba(255, 51, 102, 0.2);
+}
+
+.ics-c2-kpi {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #CBD5E1;
+    border-bottom: 1px solid rgba(30, 41, 59, 0.7);
+    padding: 4px 0;
+}
+
+.ics-c2-btn {
+    background: #0F172A;
+    color: #E2E8F0;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.ics-c2-btn:hover {
+    border-color: #00E5FF;
+    color: #00E5FF;
+}
+
+.ics-c2-btn.danger {
+    border-color: #FF3366;
+    color: #FF3366;
+}
