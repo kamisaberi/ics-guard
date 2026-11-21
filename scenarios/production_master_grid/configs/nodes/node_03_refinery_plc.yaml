@@ -8,25 +8,6 @@ node:
     primary_backend: "ROCKCHIP_RKNN"
     xdp_driver_mode: "SKB"
 
-ui_profile:
-  template: "substation_power"
-  overrides:
-    instrument_title: "EXOTHERMIC REACTION VESSEL CORE (REFINERY ZONE B)"
-    instrument_type: "reactor"
-    sensors_add:
-      - sensor_id: Refinery-Reactor-PLC-01
-        name: Siemens S7-1500 Reaction PLC (:102)
-        category: INDUSTRIAL_CPS
-        port: 102
-        unit: PSI
-        baseline: 100.2
-      - sensor_id: Refinery-IFM-Vibration-02
-        name: IFM Bearing & Agitator Vibration (:15502)
-        category: VIBRATION
-        port: 15502
-        unit: mm/s
-        baseline: 2.1
-
 nexus:
   enabled: true
   host: "10.240.0.10"
