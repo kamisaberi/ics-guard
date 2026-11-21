@@ -8,25 +8,6 @@ node:
     primary_backend: "NVIDIA_TENSORRT"
     xdp_driver_mode: "SKB"
 
-ui_profile:
-  template: "substation_power"
-  overrides:
-    instrument_title: "RADIOMETRIC THERMAL VISION CAMERA (HOSPITAL PACS)"
-    instrument_type: "video"
-    sensors_add:
-      - sensor_id: Hospital-Thermal-Camera-01
-        name: FLIR Radiometric Cooling Monitor (:8554)
-        category: TEMPERATURE
-        port: 8554
-        unit: C
-        baseline: 38.5
-      - sensor_id: Hospital-SICK-LiDAR-02
-        name: SICK Spatial Perimeter LiDAR (:2368)
-        category: LIDAR
-        port: 2368
-        unit: m
-        baseline: 12.4
-
 nexus:
   enabled: true
   host: "10.240.0.10"
