@@ -235,16 +235,3 @@ Once live, open Mission Control at **`http://localhost:9443/`**.
 * **Author:** Kamran Saberifard (`github.com/kamisaberi`)
 * **Research Preprint:** CERN / Zenodo Permanent DOI: `10.5281/zenodo.23598779`
 ```
-
----
-
-### Verification Command (Per Rule 4)
-
-After saving `/home/kami/ics-guard/README.md`, you can verify all referenced CLI/build targets and documentation links cleanly with:
-
-```bash
-cd /home/kami/ics-guard
-ls -lh README.md
-make help
-make test
-```
