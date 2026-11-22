@@ -234,4 +234,3 @@ Once live, open Mission Control at **`http://localhost:9443/`**.
 * **Company:** Aryorithm Technologies B.V. (Amsterdam, The Netherlands)
 * **Author:** Kamran Saberifard (`github.com/kamisaberi`)
 * **Research Preprint:** CERN / Zenodo Permanent DOI: `10.5281/zenodo.23598779`
-```
