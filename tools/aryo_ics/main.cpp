@@ -1,4 +1,3 @@
-// File: /home/kami/ics-guard/tools/aryo_ics/main.cpp
 
 #include "ics_guard/ics_guard.hpp"
 #include <cstdlib>

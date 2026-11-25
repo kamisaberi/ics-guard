@@ -16,7 +16,7 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_INSTALL_RPATH "/usr/local/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(
         -O3
         -march=native
@@ -39,6 +39,8 @@ include_directories(
 find_package(Threads REQUIRED)
 find_library(BLACKBOX_LIB blackbox REQUIRED PATHS /usr/local/lib /usr/lib)
 find_library(XINFER_LIB xinfer REQUIRED PATHS /usr/local/lib /usr/lib)
+find_library(SENTINELFS_LIB sentinelfs REQUIRED PATHS /usr/local/lib /usr/lib)
+
 
 message(STATUS "[ics-guard] Linked Blackbox Essential: ${BLACKBOX_LIB}")
 message(STATUS "[ics-guard] Linked Xinfer Essential:   ${XINFER_LIB}")
@@ -104,6 +106,8 @@ target_link_libraries(ics-guard-ctl PRIVATE
 add_executable(aryo-ics tools/aryo_ics/main.cpp)
 target_link_libraries(aryo-ics PRIVATE
     ics_guard
+    ${SENTINELFS_LIB}
+
     -Wl,--no-as-needed
     ${BLACKBOX_LIB}
     ${XINFER_LIB}
