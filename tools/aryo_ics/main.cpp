@@ -5,6 +5,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <sentinel/fs/PathResolver.hpp>
+#include <filesystem>
 
 static void print_help()
 {
